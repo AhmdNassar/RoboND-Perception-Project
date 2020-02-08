@@ -187,12 +187,82 @@ we can do this step by this two commands
 $ roslaunch sensor_stick robot_spawn.launch
 $ rosrun sensor_stick capture_features.py
 ```
+`capture_features.py` depend on `feature.py` file which compute color histograms and normal histograms using two functions
+```python
+def compute_color_histograms(cloud, using_hsv=False):
+
+    # Compute histograms for the clusters
+    point_colors_list = []
+
+    # Step through each point in the point cloud
+    for point in pc2.read_points(cloud, skip_nans=True):
+        rgb_list = float_to_rgb(point[3])
+        if using_hsv:
+            point_colors_list.append(rgb_to_hsv(rgb_list) * 255)
+        else:
+            point_colors_list.append(rgb_list)
+
+    # Populate lists with color values
+    channel_1_vals = []
+    channel_2_vals = []
+    channel_3_vals = []
+
+    for color in point_colors_list:
+        channel_1_vals.append(color[0])
+        channel_2_vals.append(color[1])
+        channel_3_vals.append(color[2])
+
+    # TODO: Compute histograms
+    hist_ch1 = np.histogram(channel_1_vals,bins=32,range=(0,256))
+    hist_ch2 = np.histogram(channel_2_vals,bins=32,range=(0,256))
+    hist_ch3 = np.histogram(channel_3_vals,bins=32,range=(0,256))
+
+    # TODO: Concatenate and normalize the histograms
+    features = np.concatenate((hist_ch1[0],hist_ch2[0],hist_ch3[0])).astype(np.float64)
+    normed_features =features/np.sum(features)
+    # Generate random features for demo mode.
+    # Replace normed_features with your feature vector
+    #normed_features = np.random.random(96)
+    return normed_features
+
+
+def compute_normal_histograms(normal_cloud):
+    norm_x_vals = []
+    norm_y_vals = []
+    norm_z_vals = []
+
+    for norm_component in pc2.read_points(normal_cloud,
+                                          field_names = ('normal_x', 'normal_y', 'normal_z'),
+                                          skip_nans=True):
+        norm_x_vals.append(norm_component[0])
+        norm_y_vals.append(norm_component[1])
+        norm_z_vals.append(norm_component[2])
+
+    # Compute histograms of normal values (just like with color)
+    hist_x = np.histogram(norm_x_vals)
+    hist_y = np.histogram(norm_y_vals)
+    hist_z = np.histogram(norm_z_vals)
+
+    # Concatenate and normalize the histograms
+    features = np.concatenate((hist_x[0],hist_y[0],hist_z[0])).astype(np.float64)
+    # Generate random features for demo mode.
+    # Replace normed_features with your feature vector
+    normed_features = features/np.sum(features)
+
+    return normed_features
+```
 ## train SVM using sklearn 
 this part is implemented in `train_svm.py` file in `sensor_stick` folder 
 we can do this step by this command
 ```sh
 $ rosrun sensor_stick train_svm.py
 ```
+here are confusion matrix and normalized confusion matrix after we trained out model
+
+![confusion-matrix](/img/confusion-matrix.png)
+
+from confusion matrix we noticed that snacks have accuracy only 60% and biscuits and book have 70% accuracy, so we could improve our model by generating more sample for this objects or using other color space, but it worked fine with this accuracy in recognition step 
+
 now we have `model.sav` in `~\catkin_ws`
 
 ## using SVM to recognize objects 
@@ -318,3 +388,4 @@ after all this steps we can apply our pipline to our 3 test world and this is th
 ![test world 2](./img/world2.png)
 ![test world 3](./img/world3.png)
 
+we noticed that all objects recognized correctly.
